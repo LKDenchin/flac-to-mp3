@@ -6,25 +6,9 @@
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-7.x-red.svg)](https://ffmpeg.org/)
 [![TagLib](https://img.shields.io/badge/TagLib-2.x-orange.svg)](https://taglib.org/)
 
-高性能、跨平台批量 FLAC 音频转码与元数据/专辑封面标签继承工具。采用 **C++20** 构建，基于 Multi-Agent 生产者-消费者工作线程池与事件驱动状态机，提供现代 **Qt6 桌面 GUI** 与 **Headless CLI** 命令行双模式。
+高性能、跨平台批量 FLAC 音频转码与元数据/专辑封面标签继承工具。采用 **C++20** 构建，提供现代 Qt6 GUI 与命令行双模式。
 
----
-
-## 🌟 核心特性 (Key Features)
-
-- **Multi-Agent 异步并发架构**：
-  - **Scanner Agent**：基于 `std::filesystem` 递归扫描目录，捕获权限异常；强校验文件头 4 字节 **Magic Number** (`0x66 0x4C 0x61 0x43` / `"fLaC"`) 剔除伪造扩展名文件。
-  - **Transcoder Agent**：原生 **FFmpeg C API** (`libavformat`, `libavcodec`, `libswresample`, `libavutil`) 解码、重采样（规范化为 44.1kHz 双声道）与 LAME MP3 压制。
-  - **Metadata Agent**：基于 **TagLib** 继承原 FLAC 的 Vorbis Comments 标签与 Picture Block 封面图片，无损写入目标 MP3 的 ID3v2 标签与 `APIC` 封面帧。
-  - **Coordinator**：`IDLE` -> `SCANNING` -> `READY` -> `TRANSCODING` -> `COMPLETED` 状态机与 `std::jthread` 线程池调度。
-- **100% 内存安全**：C 风格 FFmpeg 句柄、上下文与帧全生命周期由 RAII 智能指针重载删除器自动管理，零内存泄漏。
-- **双运行模式 (Dual Mode)**：
-  - **Modern Qt6 GUI**：深色调精致界面，支持实时表格视图、单曲与全局双进度条、并发线程数与比特率（CBR 320k/256k/192k/VBR V0）选择。
-  - **Headless CLI**：无界面服务器环境批量调用，支持命令行进度输出。
-
----
-
-## 🏗️ 架构设计 (Architecture)
+## 设计 (Architecture)
 
 ```text
                      ┌───────────────────────────────────┐
@@ -42,7 +26,7 @@
 
 ---
 
-## ⚙️ 环境依赖 (Prerequisites)
+## 环境依赖 (Prerequisites)
 
 - **编译器**：支持 C++20 的 C++ 编译器（GCC 10+ / Clang 12+ / MSVC 2019+）
 - **构建工具**：CMake >= 3.20
@@ -64,7 +48,7 @@ sudo apt install cmake g++ qt6-base-dev libavcodec-dev libavformat-dev libswresa
 
 ---
 
-## 🛠️ 构建指南 (Building)
+## 构建 (Building)
 
 ```bash
 # 1. 克隆仓库
@@ -81,7 +65,7 @@ make -j$(nproc)
 
 ---
 
-## 🚀 使用说明 (Usage)
+## 使用 (Usage)
 
 ### 1. 图形界面模式 (GUI Mode)
 
@@ -93,7 +77,7 @@ make -j$(nproc)
 
 - 选择包含 `.flac` 文件的源目录与目标保存目录。
 - 选择比特率配置（如 CBR 320 kbps 或 VBR V0）及并发线程数。
-- 点击 **🔍 Scan FLAC Files** 扫描，随后点击 **⚡ Start Transcoding** 开启批量压制。
+- 点击 **Scan FLAC Files** 扫描，随后点击 **⚡ Start Transcoding** 开启批量压制。
 
 ### 2. 命令行模式 (CLI Mode)
 
@@ -120,7 +104,7 @@ make -j$(nproc)
 
 ---
 
-## 📂 项目工程结构 (Directory Structure)
+## 工程 (Directory Structure)
 
 ```text
 flac-to-mp3/
@@ -151,6 +135,6 @@ flac-to-mp3/
 
 ---
 
-## 📄 开源协议 (License)
+## 开源协议 (License)
 
 本项目基于 **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** 协议开源。
