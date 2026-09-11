@@ -4,6 +4,8 @@
 #include <cctype>
 #include <system_error>
 
+#include <unordered_set>
+
 ScannerAgent::~ScannerAgent() {
     cancel();
 }
@@ -63,6 +65,7 @@ void ScannerAgent::scan_worker(std::filesystem::path source_dir,
     auto iter_options = std::filesystem::directory_options::skip_permission_denied;
     std::filesystem::recursive_directory_iterator iter(source_dir, iter_options, ec);
     std::filesystem::recursive_directory_iterator end;
+    std::unordered_set<std::string> used_target_paths;
 
     while (iter != end && !cancel_requested_.load()) {
         const auto& entry = *iter;
@@ -77,12 +80,19 @@ void ScannerAgent::scan_worker(std::filesystem::path source_dir,
 
             if (ext == ".flac") {
                 if (is_valid_flac_file(entry.path())) {
-                    std::filesystem::path rel_path = std::filesystem::relative(entry.path(), source_dir, entry_ec);
-                    if (entry_ec) {
-                        rel_path = entry.path().filename();
+                    std::filesystem::path target_filename = entry.path().filename();
+                    target_filename.replace_extension(".mp3");
+                    std::filesystem::path target_path = target_dir / target_filename;
+
+                    if (used_target_paths.contains(target_path.string())) {
+                        std::string stem = entry.path().stem().string();
+                        int counter = 1;
+                        do {
+                            target_path = target_dir / (stem + "_" + std::to_string(counter) + ".mp3");
+                            counter++;
+                        } while (used_target_paths.contains(target_path.string()));
                     }
-                    std::filesystem::path target_path = target_dir / rel_path;
-                    target_path.replace_extension(".mp3");
+                    used_target_paths.insert(target_path.string());
 
                     TranscodeTask task;
                     task.task_id = entry.path().string();
