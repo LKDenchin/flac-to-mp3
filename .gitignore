@@ -1,0 +1,36 @@
+# Build directories
+build/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# CMake temporary files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Qt generated files
+*_autogen/
+.rcc/
+.qrc/
+.moc/
+ui_*.h
+moc_*.cpp
+
+# Cache and local temp files
+.cache/
+.gemini/
+.vscode/
+.idea/
+*.swp
+*.tmp
+*.flac
+*.mp3
+
+# Log files
+*.log
