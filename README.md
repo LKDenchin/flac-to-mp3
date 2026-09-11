@@ -77,7 +77,7 @@ make -j$(nproc)
 
 - 选择包含 `.flac` 文件的源目录与目标保存目录。
 - 选择比特率配置（如 CBR 320 kbps 或 VBR V0）及并发线程数。
-- 点击 **Scan FLAC Files** 扫描，随后点击 **⚡ Start Transcoding** 开启批量压制。
+- 点击 **Scan FLAC Files** 扫描，随后点击 **Start Transcoding** 开启批量压制。
 
 ### 2. 命令行模式 (CLI Mode)
 
