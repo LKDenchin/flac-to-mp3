@@ -13,8 +13,9 @@ void print_cli_help() {
     std::cout << "Usage: flac_converter [OPTIONS]\n"
               << "Options:\n"
               << "  --cli                  Run in headless Command Line Mode\n"
-              << "  -i, --input <dir>      Source directory containing FLAC files\n"
-              << "  -o, --output <dir>     Target directory to save converted MP3 files\n"
+              << "  -i, --input <dir>      Source directory containing audio/encrypted files\n"
+              << "  -o, --output <dir>     Target directory to save converted files\n"
+              << "  -f, --format <fmt>     Output format: mp3 (default), flac, alac, wav\n"
               << "  -b, --bitrate <prof>   Bitrate profile: 320k (default), 256k, 192k, v0\n"
               << "  -t, --threads <num>    Number of concurrent worker threads\n"
               << "  -h, --help             Show this help message\n";
@@ -23,6 +24,7 @@ void print_cli_help() {
 int run_cli(int argc, char* argv[]) {
     std::string source_dir;
     std::string target_dir;
+    OutputFormat format = OutputFormat::MP3;
     BitrateProfile profile = BitrateProfile::CBR_320K;
     std::size_t threads = std::max(1u, std::thread::hardware_concurrency() - 1);
 
@@ -32,6 +34,12 @@ int run_cli(int argc, char* argv[]) {
             source_dir = argv[++i];
         } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
             target_dir = argv[++i];
+        } else if ((arg == "-f" || arg == "--format") && i + 1 < argc) {
+            std::string f = argv[++i];
+            if (f == "flac") format = OutputFormat::FLAC;
+            else if (f == "alac" || f == "m4a") format = OutputFormat::ALAC;
+            else if (f == "wav") format = OutputFormat::WAV;
+            else if (f == "mp3") format = OutputFormat::MP3;
         } else if ((arg == "-b" || arg == "--bitrate") && i + 1 < argc) {
             std::string b = argv[++i];
             if (b == "320k") profile = BitrateProfile::CBR_320K;
@@ -54,10 +62,10 @@ int run_cli(int argc, char* argv[]) {
         return 1;
     }
     if (target_dir.empty()) {
-        target_dir = source_dir + "_mp3";
+        target_dir = source_dir + "_converted";
     }
 
-    std::cout << "[CLI] Starting batch FLAC-to-MP3 transcode...\n";
+    std::cout << "[CLI] Starting batch transcode...\n";
     std::cout << "[CLI] Source: " << source_dir << "\n";
     std::cout << "[CLI] Target: " << target_dir << "\n";
     std::cout << "[CLI] Threads: " << threads << "\n";
@@ -105,13 +113,13 @@ int run_cli(int argc, char* argv[]) {
     }
 
     if (coordinator.total_tasks() == 0) {
-        std::cout << "[CLI] No valid FLAC files found.\n";
+        std::cout << "[CLI] No valid audio/encrypted files found.\n";
         return 0;
     }
 
     // 2. Transcode
     std::cout << "[CLI] Transcoding " << coordinator.total_tasks() << " file(s)...\n";
-    coordinator.start_transcode(profile, threads);
+    coordinator.start_transcode(format, profile, threads);
 
     {
         std::unique_lock<std::mutex> lock(cv_mutex);

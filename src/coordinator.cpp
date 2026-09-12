@@ -97,7 +97,9 @@ void Coordinator::update_task_in_list(const TranscodeTask& task) {
     }
 }
 
-void Coordinator::start_transcode(BitrateProfile profile, std::size_t num_threads) {
+#include <unordered_set>
+
+void Coordinator::start_transcode(OutputFormat format, BitrateProfile profile, const std::vector<std::string>& selected_task_ids, std::size_t num_threads) {
     if (state_.load() != AppState::READY) {
         return;
     }
@@ -124,15 +126,51 @@ void Coordinator::start_transcode(BitrateProfile profile, std::size_t num_thread
         return;
     }
 
+    std::unordered_set<std::string> selected_set(selected_task_ids.begin(), selected_task_ids.end());
+    bool filter_active = !selected_task_ids.empty();
+
+    uint32_t active_tasks = 0;
+    for (const auto& task : local_tasks) {
+        if (!filter_active || selected_set.count(task.task_id)) {
+            active_tasks++;
+        }
+    }
+    if (active_tasks == 0) {
+        set_state(AppState::COMPLETED);
+        if (on_summary_) {
+            on_summary_(local_tasks.size(), 0, 0, 0.0);
+        }
+        return;
+    }
+
+    total_count_ = active_tasks;
+
     for (auto task : local_tasks) {
-        thread_pool_->enqueue([this, task, profile]() mutable {
+        thread_pool_->enqueue([this, task, format, profile, filter_active, selected_set]() mutable {
+            if (filter_active && !selected_set.count(task.task_id)) {
+                task.status = TaskStatus::Skipped;
+                task.progress = 0.0f;
+                update_task_in_list(task);
+                return;
+            }
+
             if (cancel_transcode_.load()) {
                 task.status = TaskStatus::Skipped;
                 update_task_in_list(task);
                 return;
             }
 
-            // Extract metadata from source FLAC
+            if (format == OutputFormat::FLAC) {
+                task.target_path.replace_extension(".flac");
+            } else if (format == OutputFormat::ALAC) {
+                task.target_path.replace_extension(".m4a");
+            } else if (format == OutputFormat::WAV) {
+                task.target_path.replace_extension(".wav");
+            } else {
+                task.target_path.replace_extension(".mp3");
+            }
+
+            // Extract metadata from source
             MetadataAgent::extract_metadata(task.source_path, task.metadata);
 
             task.status = TaskStatus::Converting;
@@ -142,6 +180,7 @@ void Coordinator::start_transcode(BitrateProfile profile, std::size_t num_thread
             std::string transcode_err;
             bool success = TranscoderAgent::transcode(
                 task,
+                format,
                 profile,
                 [this, task](const std::string& /*task_id*/, float pct) mutable {
                     task.progress = pct;

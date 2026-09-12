@@ -29,6 +29,8 @@ add_executable(${PROJECT_NAME}
     src/scanner_agent.cpp
     src/transcoder_agent.cpp
     src/metadata_agent.cpp
+    src/decryptor_agent.cpp
+    src/i18n.cpp
     src/coordinator.cpp
     ui/main_window.cpp
 )

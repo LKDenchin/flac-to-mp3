@@ -16,6 +16,13 @@ enum class TaskStatus {
     Skipped
 };
 
+enum class OutputFormat {
+    MP3,
+    FLAC,
+    ALAC,
+    WAV
+};
+
 enum class BitrateProfile {
     CBR_320K,
     CBR_256K,
@@ -37,6 +44,7 @@ struct AudioMetadata {
     std::string album;
     std::string year;
     std::string genre;
+    std::string lyrics;
     uint32_t track_number{0};
     std::vector<uint8_t> cover_image_bytes;
     std::string cover_mime_type;

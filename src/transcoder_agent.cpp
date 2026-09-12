@@ -1,4 +1,5 @@
 #include "transcoder_agent.hpp"
+#include "decryptor_agent.hpp"
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -9,13 +10,25 @@ static std::string av_err_to_string(int errnum) {
     return std::string(errbuf);
 }
 
+#include "metadata_agent.hpp"
+
 bool TranscoderAgent::transcode(TranscodeTask& task,
+                                OutputFormat format,
                                 BitrateProfile profile,
                                 TaskProgressCallback progress_cb,
                                 std::string& out_error) {
+    // 0. Decrypt file if source is encrypted (.ncm, .qmc, etc.)
+    std::filesystem::path actual_source;
+    if (!DecryptorAgent::prepare_audio_source(task.source_path, actual_source, task.metadata, out_error)) {
+        return false;
+    }
+
+    // Extract metadata & lyrics from decrypted stream or FLAC source
+    MetadataAgent::extract_metadata(actual_source, task.metadata);
+
     // 1. Open input file
     AVFormatContext* raw_in_ctx = nullptr;
-    int ret = avformat_open_input(&raw_in_ctx, task.source_path.c_str(), nullptr, nullptr);
+    int ret = avformat_open_input(&raw_in_ctx, actual_source.c_str(), nullptr, nullptr);
     if (ret < 0) {
         out_error = "Failed to open input file: " + av_err_to_string(ret);
         return false;
@@ -63,13 +76,29 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
     }
     task.duration_seconds = total_duration_sec;
 
-    // 2. Find MP3 encoder (prefer libmp3lame)
-    const AVCodec* encoder = avcodec_find_encoder_by_name("libmp3lame");
-    if (!encoder) {
-        encoder = avcodec_find_encoder(AV_CODEC_ID_MP3);
+    // 2. Select Encoder according to OutputFormat
+    const AVCodec* encoder = nullptr;
+    const char* format_name = "mp3";
+
+    if (format == OutputFormat::FLAC) {
+        encoder = avcodec_find_encoder(AV_CODEC_ID_FLAC);
+        format_name = "flac";
+    } else if (format == OutputFormat::ALAC) {
+        encoder = avcodec_find_encoder(AV_CODEC_ID_ALAC);
+        format_name = "ipod";
+    } else if (format == OutputFormat::WAV) {
+        encoder = avcodec_find_encoder(AV_CODEC_ID_PCM_S16LE);
+        format_name = "wav";
+    } else {
+        encoder = avcodec_find_encoder_by_name("libmp3lame");
+        if (!encoder) {
+            encoder = avcodec_find_encoder(AV_CODEC_ID_MP3);
+        }
+        format_name = "mp3";
     }
+
     if (!encoder) {
-        out_error = "MP3 encoder not found (libmp3lame / AV_CODEC_ID_MP3).";
+        out_error = "Target audio encoder not found.";
         return false;
     }
 
@@ -79,9 +108,20 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
         return false;
     }
 
-    // Standard target properties: 44100 Hz, stereo
-    enc_ctx->sample_rate = 44100;
-    AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+    int target_sample_rate = dec_ctx->sample_rate;
+    if (target_sample_rate <= 0) {
+        target_sample_rate = 44100;
+    } else if (format == OutputFormat::MP3 && target_sample_rate > 48000) {
+        target_sample_rate = (target_sample_rate % 48000 == 0) ? 48000 : 44100;
+    }
+    enc_ctx->sample_rate = target_sample_rate;
+
+    AVChannelLayout out_ch_layout;
+    if (dec_ctx->ch_layout.nb_channels == 1) {
+        out_ch_layout = AV_CHANNEL_LAYOUT_MONO;
+    } else {
+        out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+    }
     ret = av_channel_layout_copy(&enc_ctx->ch_layout, &out_ch_layout);
     if (ret < 0) {
         out_error = "Failed to copy output channel layout.";
@@ -97,29 +137,29 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
     if (cfg_ret >= 0 && sample_fmts) {
         selected_sample_fmt = sample_fmts[0];
         for (int i = 0; (num_sample_fmts > 0 ? i < num_sample_fmts : sample_fmts[i] != AV_SAMPLE_FMT_NONE); ++i) {
-            if (sample_fmts[i] == AV_SAMPLE_FMT_S16P || sample_fmts[i] == AV_SAMPLE_FMT_S16) {
+            if (sample_fmts[i] == dec_ctx->sample_fmt) {
                 selected_sample_fmt = sample_fmts[i];
                 break;
+            } else if (sample_fmts[i] == AV_SAMPLE_FMT_S16P || sample_fmts[i] == AV_SAMPLE_FMT_S16) {
+                selected_sample_fmt = sample_fmts[i];
             }
         }
     }
     enc_ctx->sample_fmt = selected_sample_fmt;
 
-    // Configure bitrate profile
-    switch (profile) {
-        case BitrateProfile::CBR_320K:
-            enc_ctx->bit_rate = 320000;
-            break;
-        case BitrateProfile::CBR_256K:
-            enc_ctx->bit_rate = 256000;
-            break;
-        case BitrateProfile::CBR_192K:
-            enc_ctx->bit_rate = 192000;
-            break;
-        case BitrateProfile::VBR_V0:
-            enc_ctx->flags |= AV_CODEC_FLAG_QSCALE;
-            enc_ctx->global_quality = 0 * FF_QP2LAMBDA;
-            break;
+    if (format == OutputFormat::MP3) {
+        switch (profile) {
+            case BitrateProfile::CBR_320K: enc_ctx->bit_rate = 320000; break;
+            case BitrateProfile::CBR_256K: enc_ctx->bit_rate = 256000; break;
+            case BitrateProfile::CBR_192K: enc_ctx->bit_rate = 192000; break;
+            case BitrateProfile::VBR_V0:
+                enc_ctx->flags |= AV_CODEC_FLAG_QSCALE;
+                enc_ctx->global_quality = 0 * FF_QP2LAMBDA;
+                break;
+        }
+        enc_ctx->compression_level = 0;
+    } else if (format == OutputFormat::FLAC) {
+        enc_ctx->compression_level = 5;
     }
 
     if (in_ctx->oformat && (in_ctx->oformat->flags & AVFMT_GLOBALHEADER)) {
@@ -128,7 +168,7 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
 
     ret = avcodec_open2(enc_ctx.get(), encoder, nullptr);
     if (ret < 0) {
-        out_error = "Failed to open MP3 encoder: " + av_err_to_string(ret);
+        out_error = "Failed to open audio encoder: " + av_err_to_string(ret);
         return false;
     }
 
@@ -136,7 +176,7 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
     std::filesystem::create_directories(task.target_path.parent_path());
 
     AVFormatContext* raw_out_ctx = nullptr;
-    ret = avformat_alloc_output_context2(&raw_out_ctx, nullptr, "mp3", task.target_path.c_str());
+    ret = avformat_alloc_output_context2(&raw_out_ctx, nullptr, format_name, task.target_path.c_str());
     if (ret < 0 || !raw_out_ctx) {
         out_error = "Failed to allocate output format context: " + av_err_to_string(ret);
         return false;

@@ -92,6 +92,7 @@ public:
     TranscoderAgent& operator=(const TranscoderAgent&) = delete;
 
     static bool transcode(TranscodeTask& task,
+                          OutputFormat format,
                           BitrateProfile profile,
                           TaskProgressCallback progress_cb,
                           std::string& out_error);

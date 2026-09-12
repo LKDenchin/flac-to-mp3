@@ -78,8 +78,16 @@ void ScannerAgent::scan_worker(std::filesystem::path source_dir,
                 return static_cast<char>(std::tolower(c));
             });
 
-            if (ext == ".flac") {
-                if (is_valid_flac_file(entry.path())) {
+            if (ext == ".flac" || ext == ".ncm" || ext == ".qmc" || ext == ".qmc0" ||
+                ext == ".qmc3" || ext == ".qmcflac" || ext == ".mflac" || ext == ".mgg" ||
+                ext == ".wav" || ext == ".m4a" || ext == ".mp3") {
+                
+                bool valid = true;
+                if (ext == ".flac") {
+                    valid = is_valid_flac_file(entry.path());
+                }
+
+                if (valid) {
                     std::filesystem::path target_filename = entry.path().filename();
                     target_filename.replace_extension(".mp3");
                     std::filesystem::path target_path = target_dir / target_filename;

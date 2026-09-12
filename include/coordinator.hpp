@@ -29,7 +29,13 @@ public:
     void start_scan(const std::filesystem::path& source_dir, const std::filesystem::path& target_dir);
     void cancel_scan();
 
-    void start_transcode(BitrateProfile profile, std::size_t num_threads = 0);
+    void start_transcode(OutputFormat format, BitrateProfile profile, const std::vector<std::string>& selected_task_ids, std::size_t num_threads = 0);
+    void start_transcode(OutputFormat format, BitrateProfile profile, std::size_t num_threads = 0) {
+        start_transcode(format, profile, {}, num_threads);
+    }
+    void start_transcode(BitrateProfile profile, std::size_t num_threads = 0) {
+        start_transcode(OutputFormat::MP3, profile, {}, num_threads);
+    }
     void cancel_transcode();
     void reset();
 
