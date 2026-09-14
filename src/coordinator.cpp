@@ -186,7 +186,8 @@ void Coordinator::start_transcode(OutputFormat format, BitrateProfile profile, c
                     task.progress = pct;
                     update_task_in_list(task);
                 },
-                transcode_err
+                transcode_err,
+                &cancel_transcode_
             );
 
             if (success) {
@@ -204,7 +205,7 @@ void Coordinator::start_transcode(OutputFormat format, BitrateProfile profile, c
             update_task_in_list(task);
 
             uint32_t processed = completed_count_.load() + failed_count_.load();
-            if (processed == total_count_.load() || cancel_transcode_.load()) {
+            if (processed == total_count_.load() && cancel_transcode_.load()) {
                 end_time_ = std::chrono::steady_clock::now();
                 double elapsed_sec = std::chrono::duration<double>(end_time_ - start_time_).count();
                 set_state(AppState::COMPLETED);

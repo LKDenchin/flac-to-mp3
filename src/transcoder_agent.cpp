@@ -16,7 +16,8 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
                                 OutputFormat format,
                                 BitrateProfile profile,
                                 TaskProgressCallback progress_cb,
-                                std::string& out_error) {
+                                std::string& out_error,
+                                const std::atomic<bool>* cancel_flag) {
     // 0. Decrypt file if source is encrypted (.ncm, .qmc, etc.)
     std::filesystem::path actual_source;
     if (!DecryptorAgent::prepare_audio_source(task.source_path, actual_source, task.metadata, out_error)) {
@@ -306,6 +307,10 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
     AVFramePtr dec_frame(av_frame_alloc());
 
     while (av_read_frame(in_ctx.get(), in_pkt.get()) >= 0) {
+        if (cancel_flag && cancel_flag->load()) {
+            out_error = "Transcoding cancelled by user.";
+            return false;
+        }
         if (in_pkt->stream_index == audio_stream_idx) {
             ret = avcodec_send_packet(dec_ctx.get(), in_pkt.get());
             if (ret < 0 && ret != AVERROR(EAGAIN)) {
@@ -344,7 +349,7 @@ bool TranscoderAgent::transcode(TranscodeTask& task,
                                               resampled_data, max_dst_samples,
                                               const_cast<const uint8_t**>(dec_frame->data), dec_frame->nb_samples);
                 if (dst_samples > 0) {
-                    if (av_audio_fifo_size(fifo.get()) + dst_samples > av_audio_fifo_size(fifo.get())) {
+                    if (av_audio_fifo_size(fifo.get()) < dst_samples) {
                         int r = av_audio_fifo_realloc(fifo.get(), av_audio_fifo_size(fifo.get()) + dst_samples);
                         (void)r;
                     }

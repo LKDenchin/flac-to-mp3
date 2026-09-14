@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <atomic>
 #include "task_models.hpp"
 
 extern "C" {
@@ -95,5 +96,6 @@ public:
                           OutputFormat format,
                           BitrateProfile profile,
                           TaskProgressCallback progress_cb,
-                          std::string& out_error);
+                          std::string& out_error,
+                          const std::atomic<bool>* cancel_flag = nullptr);
 };

@@ -11,6 +11,8 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
+    qRegisterMetaType<AppState>("AppState");
+    qRegisterMetaType<TranscodeTask>("TranscodeTask");
     coordinator_ = std::make_unique<Coordinator>();
     setup_ui();
     apply_stylesheet();
@@ -488,8 +490,9 @@ void MainWindow::on_cancel_reset() {
 
 int MainWindow::find_row_by_task_id(const QString& task_id) {
     for (int row = 0; row < table_tasks_->rowCount(); ++row) {
-        if (table_tasks_->item(row, 0)->data(Qt::UserRole).toString() == task_id) {
-            return row;
+        auto* item = table_tasks_ ->item(row,0);
+        if (item &&item->data(Qt::UserRole).toString() == task_id) {
+        return row;
         }
     }
     return -1;
@@ -563,6 +566,12 @@ void MainWindow::handle_task_updated(const TranscodeTask& task) {
     int row = find_row_by_task_id(tid);
     if (row < 0) return;
 
+    auto* item_meta = table_tasks_ -> item(row,2);
+    auto* item_status = table_tasks_ -> item(row,3);
+    auto* item_details = table_tasks_ -> item(row,5);
+
+    if (!item_meta || !item_status || !item_details) return;
+
     // Update metadata info if available
     QString meta_str;
     if (!task.metadata.title.empty()) {
@@ -573,7 +582,7 @@ void MainWindow::handle_task_updated(const TranscodeTask& task) {
     } else {
         meta_str = QString::fromStdString(task.source_path.stem().string());
     }
-    table_tasks_->item(row, 2)->setText(meta_str);
+    item_meta->setText(meta_str);
 
     // Update status text
     QString status_str;
@@ -585,7 +594,7 @@ void MainWindow::handle_task_updated(const TranscodeTask& task) {
         case TaskStatus::Failed: status_str = "Failed"; break;
         case TaskStatus::Skipped: status_str = "Skipped"; break;
     }
-    table_tasks_->item(row, 3)->setText(status_str);
+    item_status->setText(status_str);
 
     // Update progress bar cell widget
     QWidget* widget = table_tasks_->cellWidget(row, 4);
@@ -594,7 +603,7 @@ void MainWindow::handle_task_updated(const TranscodeTask& task) {
     }
 
     if (task.error_message.has_value()) {
-        table_tasks_->item(row, 5)->setText(QString::fromStdString(task.error_message.value()));
+        item_details->setText(QString::fromStdString(task.error_message.value()));
     }
 
     // Update overall progress bar
